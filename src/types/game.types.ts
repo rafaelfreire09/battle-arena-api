@@ -1,7 +1,7 @@
 export interface PlayerInfo {
   client_id: string;
   username: string;
-  email?: string;
+  // email?: string;
   password?: string;
 }
 

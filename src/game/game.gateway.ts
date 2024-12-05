@@ -1,18 +1,24 @@
-import { 
-  WebSocketGateway, 
-  WebSocketServer, 
-  SubscribeMessage, 
-  OnGatewayConnection, 
-  OnGatewayDisconnect 
+import {
+  WebSocketGateway,
+  WebSocketServer,
+  SubscribeMessage,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { PlayerInfo, JoinRoom, Message, Rooms, GameMoveData } from '../types/game.types';
+import {
+  PlayerInfo,
+  JoinRoom,
+  Message,
+  Rooms,
+  GameMoveData,
+} from '../types/game.types';
 import { Logger } from '@nestjs/common';
 
 @WebSocketGateway(8800, {
   cors: {
     origin: 'http://localhost:3000',
-  }
+  },
 })
 export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
@@ -20,76 +26,82 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private logger = new Logger(GameGateway.name);
 
-  private clients: PlayerInfo[] = [];
+  private clientsOnLobby: PlayerInfo[] = [];
   private usernames: string[] = [];
   private messages: Message[] = [];
   private rooms: Rooms[] = [];
 
   constructor() {
-    // Inicializar 5 salas
+    // Initialize 5 rooms
     for (let i = 0; i < 5; i++) {
-      this.rooms.push({ 
-        status: "empty", 
-        players: [], 
-        roomId: i + 1 
+      this.rooms.push({
+        status: 'empty',
+        players: [],
+        roomId: i + 1,
       });
     }
   }
 
   handleConnection(client: Socket) {
-    console.log("Client connection " + client.id);
-    this.logger.log(`Cliente conectado: ${client.id}`);
+    this.logger.log('Socket client ' + client.id + ' connected to server');
   }
 
   @SubscribeMessage('disconnect')
   handleDisconnect(client: Socket) {
-    const clientFound = this.clients.find(user => user.client_id === client.id);
-    
-    if (clientFound) {
-      console.log("Client disconnected " + client.id);
-      this.logger.log(`Cliente desconectado: ${client.id}`);
-      this.server.emit("list_players", {
+    const clientFound = this.clientsOnLobby.find(
+      (user) => user.client_id == client.id,
+    );
+
+    if (clientFound !== undefined) {
+      this.logger.log('Socket client ' + client.id + ' was disconnected!');
+      this.server.emit('list_players', {
         add: false,
-        username: clientFound.username
+        username: clientFound.username,
       });
-      this.server.emit("list_rooms", this.rooms);
+      this.server.emit('list_rooms', this.rooms);
+    } else {
+      this.logger.log(
+        'Socket client ' +
+          `${client.id}` +
+          ' was disconnected, but was not in the lobby!',
+      );
     }
   }
 
-  @SubscribeMessage('select_room')
+  @SubscribeMessage('join_lobby')
   handleSelectRoom(client: Socket, data: PlayerInfo & { room: number }) {
-    const userInRoom = this.clients.find(
-      user => user.username === data.username && user.client_id === data.client_id
+    const userInRoom = this.clientsOnLobby.find(
+      (user) =>
+        user.username === data.username && user.client_id === data.client_id,
     );
 
-    userInRoom 
+    userInRoom
       ? (userInRoom.client_id = client.id)
-      : this.clients.push({
+      : this.clientsOnLobby.push({
           client_id: data.client_id,
           username: data.username,
-          email: data.email,
-          password: client.id,
+          // email: data.email,
+          // password: data.password,
         });
 
     this.usernames.push(data.username);
 
-    this.server.emit("list_rooms", this.rooms);
-    this.server.emit("status_room", "empty");
-    
-    client.broadcast.emit("list_players", {
+    this.server.emit('list_rooms', this.rooms);
+
+    client.broadcast.emit('list_players', {
       add: true,
-      username: data.username
+      username: data.username,
     });
   }
 
   @SubscribeMessage('list_players')
-  handleListPlayers(client: Socket, callback: (users: string[]) => void) {
-    callback(this.usernames.filter(username => username));
+  handleListPlayers(): string[] {
+    return this.usernames.filter((username) => username);
   }
 
   @SubscribeMessage('list_rooms')
-  handleListRooms(client: Socket, callback: (rooms: Rooms[]) => void) {
-    callback(this.rooms);
+  handleListRooms(): Rooms[] {
+    return this.rooms;
   }
 
   @SubscribeMessage('join_room')
@@ -100,22 +112,22 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const join: JoinRoom = {
       client_id: data.client_id,
       username: data.username,
-      room: data.room
+      room: data.room,
     };
 
-    this.server.to(nameRoom).emit("join_room", join);
+    this.server.to(nameRoom).emit('join_room', join);
     this.updateRoomStatus(data, data.room);
   }
 
   @SubscribeMessage('message')
-  handleMessage(client: Socket, data: Message) {
+  handleMessage(data: Message) {
     const message: Message = {
       username: data.username,
       text: data.text,
     };
 
     this.messages.push(message);
-    this.server.emit("message", message);
+    this.server.emit('message', message);
   }
 
   @SubscribeMessage('gameMove')
@@ -134,7 +146,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage('endGame')
-  handleEndGame(client: Socket, data: { roomId: number }) {
+  handleEndGame(data: { roomId: number }) {
     this.server.to(data.roomId.toString()).emit('endGame', data);
     this.clearRoom(data.roomId);
   }
@@ -142,10 +154,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private updateRoomStatus(player: PlayerInfo, roomId: number) {
     this.rooms.forEach((room) => {
       if (room.roomId === roomId) {
-        if (room.players.length < 2) {
+        if (room.players.length <= 1) {
           room.players.push(player);
-          room.status = room.players.length === 1 ? "waiting" : "starting";
-          this.server.emit("list_rooms", this.rooms);
+
+          room.status = 'waiting';
+          this.server.emit('list_rooms', this.rooms);
+        }
+
+        if (room.players.length === 2) {
+          room.players.push(player);
+
+          room.status = 'starting';
+          this.server.emit('list_rooms', this.rooms);
         }
       }
     });
@@ -155,9 +175,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.rooms.forEach((room) => {
       if (room.roomId === roomId) {
         room.players = [];
-        room.status = "empty";
-        this.server.emit("list_rooms", this.rooms);
-        console.log("Sala limpa");
+        room.status = 'empty';
+        this.server.emit('list_rooms', this.rooms);
+        console.log('Sala limpa');
       }
     });
   }
