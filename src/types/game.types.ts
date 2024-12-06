@@ -2,7 +2,7 @@ export interface PlayerInfo {
   client_id: string;
   username: string;
   // email?: string;
-  password?: string;
+  // password?: string;
 }
 
 export interface JoinRoom {
@@ -21,7 +21,7 @@ export interface RoomClient extends PlayerInfo {
 }
 
 export interface Rooms {
-  status: 'empty' | 'waiting' | 'starting';
+  status: "empty" | "waiting" | "starting";
   players: PlayerInfo[];
   roomId: number;
 }

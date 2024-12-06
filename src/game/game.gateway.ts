@@ -4,20 +4,20 @@ import {
   SubscribeMessage,
   OnGatewayConnection,
   OnGatewayDisconnect,
-} from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+} from "@nestjs/websockets";
+import { Server, Socket } from "socket.io";
 import {
   PlayerInfo,
   JoinRoom,
   Message,
   Rooms,
   GameMoveData,
-} from '../types/game.types';
-import { Logger } from '@nestjs/common';
+} from "../types/game.types";
+import { Logger } from "@nestjs/common";
 
 @WebSocketGateway(8800, {
   cors: {
-    origin: 'http://localhost:3000',
+    origin: "http://localhost:3000",
   },
 })
 export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
@@ -35,7 +35,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // Initialize 5 rooms
     for (let i = 0; i < 5; i++) {
       this.rooms.push({
-        status: 'empty',
+        status: "empty",
         players: [],
         roomId: i + 1,
       });
@@ -43,36 +43,36 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   handleConnection(client: Socket) {
-    this.logger.log('Socket client ' + client.id + ' connected to server');
+    this.logger.log("Socket client " + client.id + " connected to server");
   }
 
-  @SubscribeMessage('disconnect')
+  @SubscribeMessage("disconnect")
   handleDisconnect(client: Socket) {
     const clientFound = this.clientsOnLobby.find(
-      (user) => user.client_id == client.id,
+      (user) => user.client_id == client.id
     );
 
     if (clientFound !== undefined) {
-      this.logger.log('Socket client ' + client.id + ' was disconnected!');
-      this.server.emit('list_players', {
+      this.logger.log("Socket client " + client.id + " was disconnected!");
+      this.server.emit("list_players", {
         add: false,
         username: clientFound.username,
       });
-      this.server.emit('list_rooms', this.rooms);
+      this.server.emit("list_rooms", this.rooms);
     } else {
       this.logger.log(
-        'Socket client ' +
+        "Socket client " +
           `${client.id}` +
-          ' was disconnected, but was not in the lobby!',
+          " was disconnected, but was not in the lobby!"
       );
     }
   }
 
-  @SubscribeMessage('join_lobby')
+  @SubscribeMessage("join_lobby")
   handleSelectRoom(client: Socket, data: PlayerInfo & { room: number }) {
     const userInRoom = this.clientsOnLobby.find(
       (user) =>
-        user.username === data.username && user.client_id === data.client_id,
+        user.username === data.username && user.client_id === data.client_id
     );
 
     userInRoom
@@ -86,25 +86,25 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.usernames.push(data.username);
 
-    this.server.emit('list_rooms', this.rooms);
+    this.server.emit("list_rooms", this.rooms);
 
-    client.broadcast.emit('list_players', {
+    client.broadcast.emit("list_players", {
       add: true,
       username: data.username,
     });
   }
 
-  @SubscribeMessage('list_players')
+  @SubscribeMessage("list_players")
   handleListPlayers(): string[] {
     return this.usernames.filter((username) => username);
   }
 
-  @SubscribeMessage('list_rooms')
+  @SubscribeMessage("list_rooms")
   handleListRooms(): Rooms[] {
     return this.rooms;
   }
 
-  @SubscribeMessage('join_room')
+  @SubscribeMessage("join_room")
   handleJoinRoom(client: Socket, data: JoinRoom) {
     const nameRoom = data.room.toString();
     client.join(nameRoom);
@@ -115,11 +115,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       room: data.room,
     };
 
-    this.server.to(nameRoom).emit('join_room', join);
+    this.server.to(nameRoom).emit("join_room", join);
     this.updateRoomStatus(data, data.room);
   }
 
-  @SubscribeMessage('message')
+  @SubscribeMessage("message")
   handleMessage(data: Message) {
     const message: Message = {
       username: data.username,
@@ -127,27 +127,27 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     };
 
     this.messages.push(message);
-    this.server.emit('message', message);
+    this.server.emit("message", message);
   }
 
-  @SubscribeMessage('gameMove')
+  @SubscribeMessage("gameMove")
   handleGameMove(client: Socket, data: GameMoveData) {
-    client.to(data.opponentId).emit('gameMove', data);
+    client.to(data.opponentId).emit("gameMove", data);
   }
 
-  @SubscribeMessage('hit')
+  @SubscribeMessage("hit")
   handleHit(client: Socket, data: { opponentId: string }) {
-    client.to(data.opponentId).emit('hit', data);
+    client.to(data.opponentId).emit("hit", data);
   }
 
-  @SubscribeMessage('opponentLife')
+  @SubscribeMessage("opponentLife")
   handleOpponentLife(client: Socket, data: { opponentId: string }) {
-    client.to(data.opponentId).emit('opponentLife', data);
+    client.to(data.opponentId).emit("opponentLife", data);
   }
 
-  @SubscribeMessage('endGame')
+  @SubscribeMessage("endGame")
   handleEndGame(data: { roomId: number }) {
-    this.server.to(data.roomId.toString()).emit('endGame', data);
+    this.server.to(data.roomId.toString()).emit("endGame", data);
     this.clearRoom(data.roomId);
   }
 
@@ -157,15 +157,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         if (room.players.length <= 1) {
           room.players.push(player);
 
-          room.status = 'waiting';
-          this.server.emit('list_rooms', this.rooms);
+          room.status = "waiting";
+          this.server.emit("list_rooms", this.rooms);
         }
 
         if (room.players.length === 2) {
           room.players.push(player);
 
-          room.status = 'starting';
-          this.server.emit('list_rooms', this.rooms);
+          room.status = "starting";
+          this.server.emit("list_rooms", this.rooms);
         }
       }
     });
@@ -175,9 +175,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.rooms.forEach((room) => {
       if (room.roomId === roomId) {
         room.players = [];
-        room.status = 'empty';
-        this.server.emit('list_rooms', this.rooms);
-        console.log('Sala limpa');
+        room.status = "empty";
+        this.server.emit("list_rooms", this.rooms);
+        console.log("Sala limpa");
       }
     });
   }
