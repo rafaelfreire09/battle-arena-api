@@ -2,8 +2,6 @@ import {
   WebSocketGateway,
   WebSocketServer,
   SubscribeMessage,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import {
@@ -18,18 +16,14 @@ import {
   ServerToClientEvents,
   RoomClient,
 } from "../types/game.types";
-import { Logger } from "@nestjs/common";
+import { Logger, OnModuleInit } from "@nestjs/common";
 
-@WebSocketGateway(8800, {
-  cors: {
-    origin: "http://localhost:3000",
-  },
-})
-export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
+@WebSocketGateway()
+export class GameGateway implements OnModuleInit {
   @WebSocketServer()
   server: Server<ClientToServerEvents, ServerToClientEvents>;
 
-  private logger = new Logger(GameGateway.name);
+  private logger = new Logger('SocketGameGateway');
 
   private clientsOnLobby: RoomClient[] = [];
   private messages: Message[] = [];
@@ -46,11 +40,29 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
   }
 
-  handleConnection(client: Socket) {
-    this.logger.log("Socket client " + client.id + " connected to server");
+  onModuleInit() {
+    const socketPort = Number(process.env.SOCKET_SERVER_PORT);
+    const frontendUrl = process.env.FRONTEND_URL;
+    
+    // Dynamically reconfigure if needed
+    this.server.attach(socketPort, {
+      cors: {
+        origin: frontendUrl,
+      },
+      pingTimeout: Number(process.env.PING_TIME_OUT),
+      pingInterval: Number(process.env.PING_INTERVAL),
+      maxHttpBufferSize: Number(process.env.MAX_HTTP_BUFFER_SIZE),
+    });
+
+    this.logger.log(`Socket Server initialized successfully on port ${socketPort}`);
   }
 
-  @SubscribeMessage("disconnect")
+  handleConnection(client: Socket) {
+    this.logger.log(
+      `New Socket Connetion: ${client.id} | IP: ${client.handshake.address}`
+    );
+  }
+
   handleDisconnect(client: Socket) {
     const clientFound = this.clientsOnLobby.find(
       (user) => user.client_id == client.id
@@ -58,7 +70,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     if (clientFound !== undefined) {
       this.removeClientFromLobby(client);
-      this.logger.log("Socket client " + client.id + " was disconnected!");
+      this.logger.log(
+        `Socket disconnection: ${client.id} | Reason: ${client.disconnected}`
+      );
 
       this.server.emit("list_players", {
         add: false,
@@ -66,10 +80,8 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
       });
       this.server.emit("list_rooms", this.rooms);
     } else {
-      this.logger.log(
-        "Socket client " +
-          `${client.id}` +
-          " was disconnected, but was not in the lobby!"
+      this.logger.warn(
+        `Socket disconnection(Not in the lobby): ${client.id} | Reason: ${client.disconnected}`
       );
     }
   }
@@ -100,7 +112,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage("list_players")
   handleListPlayers(): string[] {
-    return this.clientsOnLobby.map(client => client.username);
+    return this.clientsOnLobby.map((client) => client.username);
   }
 
   @SubscribeMessage("list_rooms")
@@ -126,7 +138,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.server.to(nameRoom).emit("join_room", join);
     this.updateRoomStatus(data, data.room);
-    this.removeClientFromLobby(client)
+    this.removeClientFromLobby(client);
   }
 
   @SubscribeMessage("message")
@@ -195,7 +207,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const clientIndex = this.clientsOnLobby.findIndex(
       (user) => user.client_id === client.id
     );
-  
+
     if (clientIndex !== -1) {
       this.clientsOnLobby.splice(clientIndex, 1);
     }
