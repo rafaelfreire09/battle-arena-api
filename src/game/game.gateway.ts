@@ -108,6 +108,11 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     return this.rooms;
   }
 
+  @SubscribeMessage("list_messages")
+  handleListMessages(): Message[] {
+    return this.messages;
+  }
+
   @SubscribeMessage("join_room")
   handleJoinRoom(client: Socket, data: JoinRoom) {
     const nameRoom = data.room.toString();
