@@ -7,11 +7,16 @@ import {
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import {
-  PlayerInfo,
   JoinRoom,
   Message,
   Rooms,
-  GameMoveData,
+  GameMove,
+  EndGame,
+  Hit,
+  OpponentLife,
+  ClientToServerEvents,
+  ServerToClientEvents,
+  RoomClient,
 } from "../types/game.types";
 import { Logger } from "@nestjs/common";
 
@@ -22,11 +27,11 @@ import { Logger } from "@nestjs/common";
 })
 export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
-  server: Server;
+  server: Server<ClientToServerEvents, ServerToClientEvents>;
 
   private logger = new Logger(GameGateway.name);
 
-  private clientsOnLobby: PlayerInfo[] = [];
+  private clientsOnLobby: RoomClient[] = [];
   private usernames: string[] = [];
   private messages: Message[] = [];
   private rooms: Rooms[] = [];
@@ -69,7 +74,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage("join_lobby")
-  handleSelectRoom(client: Socket, data: PlayerInfo & { room: number }) {
+  handleJoinLobby(client: Socket, data: RoomClient) {
     const userInRoom = this.clientsOnLobby.find(
       (user) =>
         user.username === data.username && user.client_id === data.client_id
@@ -120,7 +125,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage("message")
-  handleMessage(data: Message) {
+  handleMessage(client: Socket, data: Message) {
     const message: Message = {
       username: data.username,
       text: data.text,
@@ -131,27 +136,27 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   }
 
   @SubscribeMessage("gameMove")
-  handleGameMove(client: Socket, data: GameMoveData) {
+  handleGameMove(client: Socket, data: GameMove) {
     client.to(data.opponentId).emit("gameMove", data);
   }
 
   @SubscribeMessage("hit")
-  handleHit(client: Socket, data: { opponentId: string }) {
+  handleHit(client: Socket, data: Hit) {
     client.to(data.opponentId).emit("hit", data);
   }
 
   @SubscribeMessage("opponentLife")
-  handleOpponentLife(client: Socket, data: { opponentId: string }) {
+  handleOpponentLife(client: Socket, data: OpponentLife) {
     client.to(data.opponentId).emit("opponentLife", data);
   }
 
   @SubscribeMessage("endGame")
-  handleEndGame(data: { roomId: number }) {
+  handleEndGame(client: Socket, data: EndGame) {
     this.server.to(data.roomId.toString()).emit("endGame", data);
     this.clearRoom(data.roomId);
   }
 
-  private updateRoomStatus(player: PlayerInfo, roomId: number) {
+  private updateRoomStatus(player: RoomClient, roomId: number) {
     this.rooms.forEach((room) => {
       if (room.roomId === roomId) {
         if (room.players.length <= 1) {
@@ -177,7 +182,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         room.players = [];
         room.status = "empty";
         this.server.emit("list_rooms", this.rooms);
-        console.log("Sala limpa");
       }
     });
   }
