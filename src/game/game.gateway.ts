@@ -57,7 +57,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     );
 
     if (clientFound !== undefined) {
+      this.removeClientFromLobby(client);
       this.logger.log("Socket client " + client.id + " was disconnected!");
+
       this.server.emit("list_players", {
         add: false,
         username: clientFound.username,
@@ -119,6 +121,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.server.to(nameRoom).emit("join_room", join);
     this.updateRoomStatus(data, data.room);
+    this.removeClientFromLobby(client)
   }
 
   @SubscribeMessage("message")
@@ -181,5 +184,15 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         this.server.emit("list_rooms", this.rooms);
       }
     });
+  }
+
+  private removeClientFromLobby(client: Socket) {
+    const clientIndex = this.clientsOnLobby.findIndex(
+      (user) => user.client_id === client.id
+    );
+  
+    if (clientIndex !== -1) {
+      this.clientsOnLobby.splice(clientIndex, 1);
+    }
   }
 }
