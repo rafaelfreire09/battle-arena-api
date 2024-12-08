@@ -32,7 +32,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private logger = new Logger(GameGateway.name);
 
   private clientsOnLobby: RoomClient[] = [];
-  private usernames: string[] = [];
   private messages: Message[] = [];
   private rooms: Rooms[] = [];
 
@@ -89,8 +88,6 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
           // password: data.password,
         });
 
-    this.usernames.push(data.username);
-
     this.server.emit("list_rooms", this.rooms);
 
     client.broadcast.emit("list_players", {
@@ -101,7 +98,7 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   @SubscribeMessage("list_players")
   handleListPlayers(): string[] {
-    return this.usernames.filter((username) => username);
+    return this.clientsOnLobby.map(client => client.username);
   }
 
   @SubscribeMessage("list_rooms")
