@@ -23,7 +23,7 @@ export class GameGateway implements OnModuleInit {
   @WebSocketServer()
   server: Server<ClientToServerEvents, ServerToClientEvents>;
 
-  private logger = new Logger('SocketGameGateway');
+  private logger = new Logger("SocketGameGateway");
 
   private clientsOnLobby: RoomClient[] = [];
   private messages: Message[] = [];
@@ -43,7 +43,7 @@ export class GameGateway implements OnModuleInit {
   onModuleInit() {
     const socketPort = Number(process.env.SOCKET_SERVER_PORT);
     const frontendUrl = process.env.FRONTEND_URL;
-    
+
     // Dynamically reconfigure if needed
     this.server.attach(socketPort, {
       cors: {
@@ -54,7 +54,9 @@ export class GameGateway implements OnModuleInit {
       maxHttpBufferSize: Number(process.env.MAX_HTTP_BUFFER_SIZE),
     });
 
-    this.logger.log(`Socket Server initialized successfully on port ${socketPort}`);
+    this.logger.log(
+      `Socket Server initialized successfully on port ${socketPort}`
+    );
   }
 
   handleConnection(client: Socket) {
@@ -83,6 +85,10 @@ export class GameGateway implements OnModuleInit {
       this.logger.warn(
         `Socket disconnection(Not in the lobby): ${client.id} | Reason: ${client.disconnected}`
       );
+    }
+
+    if (this.clientsOnLobby.length === 0 && this.messages.length !== 0) {
+      this.clearMessages();
     }
   }
 
@@ -211,5 +217,10 @@ export class GameGateway implements OnModuleInit {
     if (clientIndex !== -1) {
       this.clientsOnLobby.splice(clientIndex, 1);
     }
+  }
+
+  private clearMessages() {
+    this.messages = [];
+    this.logger.log("Messages Cleared - No Users in Lobby");
   }
 }
