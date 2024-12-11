@@ -152,6 +152,7 @@ export class GameGateway implements OnModuleInit {
     const message: Message = {
       username: data.username,
       text: data.text,
+      hour: data.hour,
     };
 
     this.messages.push(message);

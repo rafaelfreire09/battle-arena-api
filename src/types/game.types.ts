@@ -16,6 +16,7 @@ export interface JoinRoom {
 export interface Message {
   username: string;
   text: string;
+  hour: string;
 }
 
 export interface Player {
