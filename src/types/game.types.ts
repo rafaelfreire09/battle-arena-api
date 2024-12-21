@@ -10,7 +10,7 @@ export interface RoomClient {
 export interface JoinRoom {
   client_id: string;
   username: string;
-  room: number;
+  roomId: string;
 }
 
 export interface Message {
@@ -27,7 +27,7 @@ export interface Player {
 export interface Rooms {
   status: "empty" | "waiting" | "starting";
   players: RoomClient[];
-  roomId: number;
+  roomId: string;
 }
 
 export interface GameMove {
@@ -51,7 +51,7 @@ export interface OpponentLife {
 export interface EndGame {
   winner: string;
   opponentId: string;
-  roomId: number;
+  roomId: string;
 }
 
 export interface ServerToClientEvents {

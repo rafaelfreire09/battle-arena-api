@@ -176,11 +176,11 @@ export class GameGateway implements OnModuleInit {
 
   @SubscribeMessage("endGame")
   handleEndGame(client: Socket, data: EndGame) {
-    this.server.to(data.roomId.toString()).emit("endGame", data);
+    this.server.to(data.roomId).emit("endGame", data);
     this.clearRoom(data.roomId);
   }
 
-  private updateRoomStatus(player: RoomClient, roomId: number) {
+  private updateRoomStatus(player: RoomClient, roomId: string) {
     this.rooms.forEach((room) => {
       if (room.roomId === roomId) {
         if (room.players.length <= 1) {
@@ -200,7 +200,7 @@ export class GameGateway implements OnModuleInit {
     });
   }
 
-  private clearRoom(roomId: number) {
+  private clearRoom(roomId: string) {
     this.rooms.forEach((room) => {
       if (room.roomId === roomId) {
         room.players = [];
