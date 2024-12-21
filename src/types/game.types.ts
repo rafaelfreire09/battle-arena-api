@@ -13,6 +13,13 @@ export interface JoinRoom {
   roomId: string;
 }
 
+export interface HandleRoom {
+  client_id: string;
+  username: string;
+  roomName?: string;
+  roomId?: string;
+}
+
 export interface Message {
   username: string;
   text: string;
@@ -25,9 +32,11 @@ export interface Player {
 }
 
 export interface Rooms {
-  status: "empty" | "waiting" | "starting";
-  players: RoomClient[];
   roomId: string;
+  roomOwnerClientId: string;
+  roomOwner: string;
+  roomName: string;
+  players: RoomClient[];
 }
 
 export interface GameMove {
@@ -72,6 +81,9 @@ export interface ClientToServerEvents {
   message: (data: Message) => void;
   join_lobby: (data: RoomClient) => void;
   join_room: (data: JoinRoom) => void;
+  create_room: (data: HandleRoom) => void;
+  delete_room: (data: HandleRoom) => void;
+  exit_room: () => JoinRoom;
   list_players: () => string[];
   list_rooms: () => Rooms[];
   list_messages: () => Message[];

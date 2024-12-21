@@ -15,6 +15,7 @@ import {
   ClientToServerEvents,
   ServerToClientEvents,
   RoomClient,
+  HandleRoom,
 } from "../types/game.types";
 import { Logger, OnModuleInit } from "@nestjs/common";
 import { v4 as uuidv4 } from "uuid";
@@ -29,17 +30,6 @@ export class GameGateway implements OnModuleInit {
   private clientsOnLobby: RoomClient[] = [];
   private messages: Message[] = [];
   private rooms: Rooms[] = [];
-
-  constructor() {
-    // Initialize 5 rooms
-    for (let i = 0; i < 5; i++) {
-      this.rooms.push({
-        status: "empty",
-        players: [],
-        roomId: i + 1,
-      });
-    }
-  }
 
   onModuleInit() {
     const socketPort = Number(process.env.SOCKET_SERVER_PORT);
@@ -148,6 +138,40 @@ export class GameGateway implements OnModuleInit {
     this.removeClientFromLobby(client);
   }
 
+  @SubscribeMessage("exit_room")
+  handleExitRoom(client: Socket, data: JoinRoom) {
+    this.exitFromRoom(client, data.roomId);
+
+    return data;
+  }
+
+  @SubscribeMessage("create_room")
+  handleCreateRoom(client: Socket, data: HandleRoom) {
+    this.rooms.push({
+      roomId: uuidv4(),
+      roomOwner: data.username,
+      roomOwnerClientId: data.client_id,
+      roomName: data.roomName,
+      status: "empty",
+      players: [],
+    });
+
+    this.server.emit("list_rooms", this.rooms);
+  }
+
+  @SubscribeMessage("delete_room")
+  handleDeleteRoom(client: Socket, data: HandleRoom) {
+    const roomIndex = this.rooms.findIndex(
+      (room) => room.roomId === data.roomId
+    );
+
+    if (roomIndex !== -1) {
+      this.rooms.splice(roomIndex, 1);
+    }
+
+    this.server.emit("list_rooms", this.rooms);
+  }
+
   @SubscribeMessage("message")
   handleMessage(client: Socket, data: Message) {
     const message: Message = {
@@ -209,6 +233,23 @@ export class GameGateway implements OnModuleInit {
         this.server.emit("list_rooms", this.rooms);
       }
     });
+  }
+
+  private exitFromRoom(client: Socket, roomId: string) {
+    const roomIndex = this.rooms.findIndex((room) => room.roomId === roomId);
+
+    const playerIndex = this.rooms[roomIndex].players.findIndex(
+      (user) => user.client_id === client.id
+    );
+
+    if (playerIndex !== -1) {
+      this.rooms[roomIndex].players.splice(playerIndex, 1);
+
+      if (this.rooms[roomIndex].players.length === 0) {
+        this.rooms[roomIndex].status = "empty";
+        this.server.emit("list_rooms", this.rooms);
+      }
+    }
   }
 
   private removeClientFromLobby(client: Socket) {
