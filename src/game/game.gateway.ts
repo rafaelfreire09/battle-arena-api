@@ -124,17 +124,7 @@ export class GameGateway implements OnModuleInit {
 
   @SubscribeMessage("join_room")
   handleJoinRoom(client: Socket, data: JoinRoom) {
-    const nameRoom = data.room.toString();
-    client.join(nameRoom);
-
-    const join: JoinRoom = {
-      client_id: data.client_id,
-      username: data.username,
-      room: data.room,
-    };
-
-    this.server.to(nameRoom).emit("join_room", join);
-    this.updateRoomStatus(data, data.room);
+    this.updateRoomStatus(data, data.roomId);
     this.removeClientFromLobby(client);
   }
 
@@ -208,17 +198,17 @@ export class GameGateway implements OnModuleInit {
   private updateRoomStatus(player: RoomClient, roomId: string) {
     this.rooms.forEach((room) => {
       if (room.roomId === roomId) {
-        if (room.players.length <= 1) {
+        if (room.players.length === 1) {
           room.players.push(player);
 
-          room.status = "waiting";
+          room.status = "full";
           this.server.emit("list_rooms", this.rooms);
         }
 
-        if (room.players.length === 2) {
+        if (room.players.length <= 0) {
           room.players.push(player);
 
-          room.status = "starting";
+          room.status = "waiting";
           this.server.emit("list_rooms", this.rooms);
         }
       }

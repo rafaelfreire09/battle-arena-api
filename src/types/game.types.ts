@@ -36,6 +36,7 @@ export interface Rooms {
   roomOwnerClientId: string;
   roomOwner: string;
   roomName: string;
+  status: "empty" | "waiting" | "full";
   players: RoomClient[];
 }
 
