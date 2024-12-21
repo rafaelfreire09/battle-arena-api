@@ -17,6 +17,7 @@ import {
   RoomClient,
 } from "../types/game.types";
 import { Logger, OnModuleInit } from "@nestjs/common";
+import { v4 as uuidv4 } from "uuid";
 
 @WebSocketGateway()
 export class GameGateway implements OnModuleInit {
