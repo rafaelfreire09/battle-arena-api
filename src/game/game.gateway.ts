@@ -191,8 +191,7 @@ export class GameGateway implements OnModuleInit {
 
   @SubscribeMessage("endGame")
   handleEndGame(client: Socket, data: EndGame) {
-    this.server.to(data.roomId).emit("endGame", data);
-    this.clearRoom(data.roomId);
+    this.server.to([client.id, data.opponentId]).emit("endGame", data);
   }
 
   private updateRoomStatus(player: RoomClient, roomId: string) {
@@ -215,16 +214,6 @@ export class GameGateway implements OnModuleInit {
     });
   }
 
-  private clearRoom(roomId: string) {
-    this.rooms.forEach((room) => {
-      if (room.roomId === roomId) {
-        room.players = [];
-        room.status = "empty";
-        this.server.emit("list_rooms", this.rooms);
-      }
-    });
-  }
-
   private exitFromRoom(client: Socket, roomId: string) {
     const roomIndex = this.rooms.findIndex((room) => room.roomId === roomId);
 
@@ -234,6 +223,11 @@ export class GameGateway implements OnModuleInit {
 
     if (playerIndex !== -1) {
       this.rooms[roomIndex].players.splice(playerIndex, 1);
+
+      if (this.rooms[roomIndex].players.length === 1) {
+        this.rooms[roomIndex].status = "waiting";
+        this.server.emit("list_rooms", this.rooms);
+      }
 
       if (this.rooms[roomIndex].players.length === 0) {
         this.rooms[roomIndex].status = "empty";
