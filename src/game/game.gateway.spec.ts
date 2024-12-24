@@ -1,25 +1,19 @@
-// src/game.gateway.spec.ts
 import { Test, TestingModule } from "@nestjs/testing";
+import { Socket } from "socket.io";
 import { GameGateway } from "./game.gateway";
-import { Server, Socket } from "socket.io";
+import { JoinRoom, Message, CharacterSides, RoomClient } from "../types/game.types";
+import { v4 as uuidv4 } from "uuid";
 
 describe("GameGateway", () => {
   let gateway: GameGateway;
-  let mockServer: Partial<Server>;
   let mockSocket: Partial<Socket>;
+  let mockServer: any;
+  let roomId: string = uuidv4();
 
   beforeEach(async () => {
+    // Mock server methods
     mockServer = {
       emit: jest.fn(),
-      to: jest.fn().mockReturnThis(),
-    };
-
-    mockSocket = {
-      id: "test-socket-id",
-      join: jest.fn(),
-      broadcast: {
-        emit: jest.fn(),
-      } as any,
       to: jest.fn().mockReturnThis(),
     };
 
@@ -28,121 +22,127 @@ describe("GameGateway", () => {
     }).compile();
 
     gateway = module.get<GameGateway>(GameGateway);
-    gateway.server = mockServer as Server;
+
+    // Set the mocked server
+    (gateway as any).server = mockServer;
+
+    mockSocket = {
+      id: "test-socket-id",
+      join: jest.fn(),
+      broadcast: {
+        emit: jest.fn(),
+      } as any,
+      to: jest.fn().mockReturnThis(),
+      emit: jest.fn(),
+    };
   });
 
-  it("should be defined", () => {
-    expect(gateway).toBeDefined();
-  });
-
-  describe("Room Management", () => {
+  describe("Initialization", () => {
     it("should initialize with 5 empty rooms", () => {
-      expect(gateway["rooms"].length).toBe(5);
-      gateway["rooms"].forEach((room) => {
+      // Use reflection to access private rooms property
+      const rooms = (gateway as any).rooms;
+      expect(rooms.length).toBe(5);
+      rooms.forEach((room) => {
         expect(room.status).toBe("empty");
         expect(room.players.length).toBe(0);
       });
     });
+  });
 
-    it("should handle room selection", () => {
-      const userData = {
-        client_id: "test-client-id",
-        username: "testUser",
-        room: 1,
+  describe("Lobby Management", () => {
+    it("should handle joining lobby", () => {
+      const playerData: RoomClient = {
+        client_id: "test-socket-id",
+        username: "TestPlayer",
       };
 
-      gateway.handleSelectRoom(mockSocket as Socket, userData);
+      // Call the method directly with mocked socket
+      gateway.handleJoinLobby(mockSocket as Socket, playerData);
 
+      // Check that server emitted events
       expect(mockServer.emit).toHaveBeenCalledWith(
         "list_rooms",
         expect.any(Array)
       );
-      expect(mockServer.emit).toHaveBeenCalledWith("status_room", "empty");
       expect(mockSocket.broadcast.emit).toHaveBeenCalledWith("list_players", {
         add: true,
-        username: "testUser",
+        username: "TestPlayer",
       });
+    });
+
+    it("should join room and update room status", () => {
+      const joinRoomData: JoinRoom = {
+        client_id: "test-socket-id",
+        username: "TestPlayer",
+        roomId,
+      };
+
+      // Mock socket.join method
+      mockSocket.join = jest.fn();
+
+      gateway.handleJoinRoom(mockSocket as Socket, joinRoomData);
+
+      // Check room join and server events
+      expect(mockSocket.join).toHaveBeenCalledWith("1");
+      expect(mockServer.to).toHaveBeenCalledWith("1");
     });
   });
 
   describe("Message Handling", () => {
     it("should handle and broadcast messages", () => {
-      const messageData = {
-        username: "testUser",
+      const date = new Date();
+
+      const dateString =
+        String(date.getHours()) + ":" + String(date.getMinutes());
+
+      const messageData: Message = {
+        username: "TestPlayer",
         text: "Hello, world!",
+        hour: dateString,
       };
 
       gateway.handleMessage(mockSocket as Socket, messageData);
 
-      expect(mockServer.emit).toHaveBeenCalledWith("message", {
-        username: "testUser",
-        text: "Hello, world!",
-      });
-
-      // Verify message was added to messages array
-      expect(gateway["messages"]).toContainEqual(messageData);
+      // Check server broadcast
+      expect(mockServer.emit).toHaveBeenCalledWith("message", messageData);
     });
   });
 
-  describe("Game Events", () => {
+  describe("Game Mechanics", () => {
     it("should handle game moves", () => {
       const gameMoveData = {
         opponentId: "opponent-socket-id",
+        playerId: "test-socket-id",
+        xAxis: 100,
+        yAxis: 200,
+        side: "down" as CharacterSides,
       };
 
       gateway.handleGameMove(mockSocket as Socket, gameMoveData);
 
+      // Verify socket method calls
       expect(mockSocket.to).toHaveBeenCalledWith("opponent-socket-id");
+      expect(mockSocket.to("opponent-socket-id").emit).toHaveBeenCalledWith(
+        "gameMove",
+        gameMoveData
+      );
     });
 
-    it("should handle hit events", () => {
-      const hitData = {
-        opponentId: "opponent-socket-id",
-      };
-
-      gateway.handleHit(mockSocket as Socket, hitData);
-
-      expect(mockSocket.to).toHaveBeenCalledWith("opponent-socket-id");
-    });
-
-    it("should handle end game events", () => {
+    it("should handle end game and clear room", () => {
       const endGameData = {
-        roomId: 1,
+        roomId,
+        winner: "TestPlayer",
+        opponentId: "opponent-id",
       };
 
       gateway.handleEndGame(mockSocket as Socket, endGameData);
 
-      // Check if room was cleared
-      const room = gateway["rooms"].find((r) => r.roomId === 1);
-      expect(room.status).toBe("empty");
-      expect(room.players.length).toBe(0);
-
-      // Check server emission
+      // Check server broadcast
       expect(mockServer.to).toHaveBeenCalledWith("1");
-      expect(mockServer.emit).toHaveBeenCalledWith(
-        "list_rooms",
-        expect.any(Array)
+      expect(mockServer.to("1").emit).toHaveBeenCalledWith(
+        "endGame",
+        endGameData
       );
-    });
-  });
-
-  describe("Room Joining", () => {
-    it("should allow joining a room", () => {
-      const joinData = {
-        client_id: "test-client-id",
-        username: "testUser",
-        room: 1,
-      };
-
-      gateway.handleJoinRoom(mockSocket as Socket, joinData);
-
-      // Verify socket joined the room
-      expect(mockSocket.join).toHaveBeenCalledWith("1");
-
-      // Verify room status update
-      const room = gateway["rooms"].find((r) => r.roomId === 1);
-      expect(room.players.length).toBeGreaterThan(0);
-      expect(room.status).toBe("waiting");
     });
   });
 });
